@@ -1,0 +1,11 @@
+{
+    "id": "alduris.porlgatory",
+    "name": "Porlgatory",
+    "version": "1.0.3",
+    "authors": "Alduris",
+    "description": "Oops! All scavs!",
+    "tags": ["Game Mechanics"],
+    "requirements": [],
+    "requirements_names": [],
+    "checksum_override_version": true
+}
