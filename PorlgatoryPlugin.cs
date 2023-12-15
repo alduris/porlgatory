@@ -17,7 +17,7 @@ using SecurityAction = System.Security.Permissions.SecurityAction;
 
 namespace PorlgatoryMod;
 
-[BepInPlugin("alduris.porlgatory", "Porlgatory", "1.0.3")]
+[BepInPlugin("alduris.porlgatory", "Porlgatory", "1.0.4")]
 public class PorlgatoryPlugin : BaseUnityPlugin
 {
     private void OnEnable()
@@ -148,6 +148,18 @@ public class PorlgatoryPlugin : BaseUnityPlugin
                     {
                         type = MoreSlugcatsEnums.CreatureTemplateType.ScavengerElite;
                     }
+                }
+            }
+
+            if (options.UseSpecificId.Value)
+            {
+                if (type == CreatureTemplate.Type.Scavenger)
+                {
+                    ID = new EntityID(ID.spawner, options.ScavSpawnId.Value);
+                }
+                else if (type == MoreSlugcatsEnums.CreatureTemplateType.ScavengerElite)
+                {
+                    ID = new EntityID(ID.spawner, options.EliteSpawnId.Value);
                 }
             }
 
