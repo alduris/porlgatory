@@ -5,11 +5,11 @@ using Menu.Remix.MixedUI.ValueTypes;
 
 namespace PorlgatoryMod
 {
-    internal class PorlgatoryOptions : OptionInterface
+    internal class Options : OptionInterface
     {
         private readonly ManualLogSource logger;
 
-        public PorlgatoryOptions(PorlgatoryPlugin modInstance, ManualLogSource loggerSource)
+        public Options(Plugin modInstance, ManualLogSource loggerSource)
         {
             logger = loggerSource;
 

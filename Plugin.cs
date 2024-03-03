@@ -2,7 +2,6 @@
 using System.Security;
 using System.Security.Permissions;
 using BepInEx;
-using Mono.Cecil;
 using Mono.Cecil.Cil;
 using MonoMod.Cil;
 using MoreSlugcats;
@@ -17,17 +16,24 @@ using SecurityAction = System.Security.Permissions.SecurityAction;
 
 namespace PorlgatoryMod;
 
-[BepInPlugin("alduris.porlgatory", "Porlgatory", "1.0.4")]
-public class PorlgatoryPlugin : BaseUnityPlugin
+[BepInPlugin("alduris.porlgatory", "Porlgatory", "1.0.5")]
+public class Plugin : BaseUnityPlugin
 {
     private void OnEnable()
     {
         On.RainWorld.OnModsInit += RainWorldOnOnModsInit;
-        options = new PorlgatoryOptions(this, base.Logger);
+        options = new Options(this, base.Logger);
+    }
+
+    private void OnDisable()
+    {
+        On.RainWorld.OnModsInit -= RainWorldOnOnModsInit;
+        IsInit = false;
+        options = null;
     }
 
     private bool IsInit;
-    private PorlgatoryOptions options;
+    private Options options;
     private void RainWorldOnOnModsInit(On.RainWorld.orig_OnModsInit orig, RainWorld self)
     {
         orig(self);
@@ -68,7 +74,7 @@ public class PorlgatoryPlugin : BaseUnityPlugin
             }
 
             // Void sea ghost funnies
-            PorlgatoryVoidSea.ApplyHooks(options, Logger);
+            VoidSeaHooks.ApplyHooks(options, Logger);
             On.RainWorldGame.ShutDownProcess += RainWorldGame_ShutDownProcess;
 
             // Ready to go!
@@ -85,7 +91,7 @@ public class PorlgatoryPlugin : BaseUnityPlugin
     private void RainWorldGame_ShutDownProcess(On.RainWorldGame.orig_ShutDownProcess orig, RainWorldGame self)
     {
         orig(self);
-        PorlgatoryVoidSea.ClearGhosts();
+        VoidSeaHooks.ClearGhosts();
     }
 
 
@@ -125,7 +131,7 @@ public class PorlgatoryPlugin : BaseUnityPlugin
                 }
 
                 // Inv still gets to suffer >:3
-                SlugcatStats.Name campaign = world.game.GetStorySession.saveStateNumber;
+                SlugcatStats.Name campaign = world.game.GetStorySession?.saveStateNumber;
                 if (campaign == MoreSlugcatsEnums.SlugcatStatsName.Sofanthiel)
                 {
                     if (

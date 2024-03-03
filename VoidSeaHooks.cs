@@ -6,19 +6,20 @@ using Mono.Cecil.Cil;
 using MonoMod.Cil;
 using MonoMod.RuntimeDetour;
 using RWCustom;
+using Unity.Mathematics;
 using UnityEngine;
 using VoidSea;
 using Random = UnityEngine.Random;
 
 namespace PorlgatoryMod
 {
-    internal static class PorlgatoryVoidSea
+    internal static class VoidSeaHooks
     {
-        public static List<ScavGhost> scavGhosts = new();
-        private static PorlgatoryOptions options;
+        public static List<ScavGhost> scavGhosts = [];
+        private static Options options;
         private static ManualLogSource Logger;
 
-        public static void ApplyHooks(PorlgatoryOptions opts, ManualLogSource logger)
+        public static void ApplyHooks(Options opts, ManualLogSource logger)
         {
             options = opts;
             Logger = logger;
@@ -47,8 +48,10 @@ namespace PorlgatoryMod
             if (options.VoidSeaScavs.Value)
             {
                 Vector2 pos = self.originalPlayer.mainBodyChunk.pos + Custom.RNV() * 2000f;
-                AbstractCreature abstractCreature = new(self.voidSea.room.world, StaticWorld.GetCreatureTemplate(CreatureTemplate.Type.Scavenger), null, self.voidSea.room.GetWorldCoordinate(pos), self.originalPlayer.abstractCreature.world.game.GetNewID());
-                abstractCreature.saveCreature = false;
+                AbstractCreature abstractCreature = new(self.voidSea.room.world, StaticWorld.GetCreatureTemplate(CreatureTemplate.Type.Scavenger), null, self.voidSea.room.GetWorldCoordinate(pos), self.originalPlayer.abstractCreature.world.game.GetNewID())
+                {
+                    saveCreature = false
+                };
                 self.voidSea.room.abstractRoom.AddEntity(abstractCreature);
                 abstractCreature.RealizeInRoom();
                 for (int i = 0; i < abstractCreature.realizedCreature.bodyChunks.Length; i++)
@@ -218,27 +221,19 @@ namespace PorlgatoryMod
                 }
                 for (int i = 0; i < (scav.graphicsModule as ScavengerGraphics).drawPositions.GetLength(0); i++)
                 {
-                    (scav.graphicsModule as ScavengerGraphics).drawPositions[i, 0] += move;
-                    (scav.graphicsModule as ScavengerGraphics).drawPositions[i, 1] += move;
+                    (scav.graphicsModule as ScavengerGraphics).drawPositions[i, 0] += new float2(move);
+                    (scav.graphicsModule as ScavengerGraphics).drawPositions[i, 1] += new float2(move);
                 }
             }
         }
 
-        public class ScavGhost
+        public class ScavGhost(PlayerGhosts owner, Scavenger creature)
         {
-            public PlayerGhosts owner;
-            public Scavenger creature;
-            public float swimSpeed;
-            public Vector2 drift;
+            public PlayerGhosts owner = owner;
+            public Scavenger creature = creature;
+            public float swimSpeed = Mathf.Lerp(0.9f, 1f, Custom.PushFromHalf(Random.value, 1f + 0.5f * Random.value));
+            public Vector2 drift = Custom.RNV();
             public bool slatedForDeletion;
-
-            public ScavGhost(PlayerGhosts owner,  Scavenger creature)
-            {
-                this.owner = owner;
-                this.creature = creature;
-                swimSpeed = Mathf.Lerp(0.9f, 1f, Custom.PushFromHalf(Random.value, 1f + 0.5f * Random.value));
-                drift = Custom.RNV();
-            }
 
             public void Update()
             {
