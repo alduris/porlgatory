@@ -2,6 +2,7 @@
 using System.Security;
 using System.Security.Permissions;
 using BepInEx;
+using BepInEx.Logging;
 using Mono.Cecil.Cil;
 using MonoMod.Cil;
 using MoreSlugcats;
@@ -19,10 +20,12 @@ namespace PorlgatoryMod;
 [BepInPlugin("alduris.porlgatory", "Porlgatory", "1.0.5")]
 public class Plugin : BaseUnityPlugin
 {
+    public static new ManualLogSource Logger;
+
     private void OnEnable()
     {
         On.RainWorld.OnModsInit += RainWorldOnOnModsInit;
-        options = new Options(this, base.Logger);
+        options = new Options();
     }
 
     private void OnDisable()

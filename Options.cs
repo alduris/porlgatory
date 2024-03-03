@@ -1,5 +1,4 @@
-﻿using System.Collections.Generic;
-using BepInEx.Logging;
+﻿using BepInEx.Logging;
 using Menu.Remix.MixedUI;
 using Menu.Remix.MixedUI.ValueTypes;
 
@@ -7,12 +6,8 @@ namespace PorlgatoryMod
 {
     internal class Options : OptionInterface
     {
-        private readonly ManualLogSource logger;
-
-        public Options(Plugin modInstance, ManualLogSource loggerSource)
+        public Options()
         {
-            logger = loggerSource;
-
             BatfliesSpawn = config.Bind<bool>("Porlgatory_BatfliesSpawn", false, new ConfigurableInfo("Whether or not batflies are part of the exceptions list"));
             SpawnWithItems = config.Bind<bool>("Porlgatory_SpawnWithItems", false, new ConfigurableInfo("Whether or not scavs spawned by the mod spawn with items (can cause lag)"));
             VoidSeaScavs = config.Bind<bool>("Porlgatory_VoidSeaScavs", true, new ConfigurableInfo("Whether or not the players in the void sea are replaced with scavs"));
@@ -41,10 +36,7 @@ namespace PorlgatoryMod
 
             // Initialize tab
             var opTab = new OpTab(this, "Options");
-            this.Tabs = new[]
-            {
-                opTab
-            };
+            this.Tabs = [ opTab ];
 
             useIdCheckbox = new OpCheckBox(UseSpecificId, new(10f, 440f));
 
