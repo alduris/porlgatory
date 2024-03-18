@@ -24,8 +24,8 @@ public class Plugin : BaseUnityPlugin
 
     private void OnEnable()
     {
+        Logger = base.Logger;
         On.RainWorld.OnModsInit += RainWorldOnOnModsInit;
-        options = new Options();
     }
 
     private void OnDisable()
@@ -43,6 +43,7 @@ public class Plugin : BaseUnityPlugin
         try
         {
             if (IsInit) return;
+            options = new Options();
             MachineConnector.SetRegisteredOI("alduris.porlgatory", options);
 
             // The hook that creates the scavengers
