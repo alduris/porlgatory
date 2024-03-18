@@ -399,6 +399,4 @@ FodyWeavers.xsd
 
 ###############################################################################
 # My stuff
-output/*
-!output/modinfo.json
-!output/Thumbnail.png
+output/**/*.dll
