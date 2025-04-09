@@ -399,4 +399,4 @@ FodyWeavers.xsd
 
 ###############################################################################
 # My stuff
-output/**/*.dll
+output/newest/plugins/*.dll

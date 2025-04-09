@@ -1,10 +1,11 @@
 {
     "id": "alduris.porlgatory",
     "name": "Porlgatory",
-    "version": "1.0.5",
+    "version": "1.0.6",
     "authors": "Alduris",
     "description": "Oops! All scavs!",
-    "tags": ["Game Mechanics"],
+    "tags": ["Game Mechanics", "Downpour", "Watcher"],
+    "youtube_trailer_id": "Zs313EDKZeU",
     "requirements": [],
     "requirements_names": [],
     "checksum_override_version": true

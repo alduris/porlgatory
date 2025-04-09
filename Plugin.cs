@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Security;
 using System.Security.Permissions;
 using BepInEx;
@@ -7,6 +9,7 @@ using Mono.Cecil.Cil;
 using MonoMod.Cil;
 using MoreSlugcats;
 using UnityEngine;
+using Watcher;
 using Random = UnityEngine.Random;
 using SecurityAction = System.Security.Permissions.SecurityAction;
 
@@ -60,7 +63,7 @@ public class Plugin : BaseUnityPlugin
             IL.Room.Loaded += Room_Loaded;
             IL.Room.PlaceQuantifiedCreaturesInRoom += Room_PlaceQuantifiedCreaturesInRoom;
             IL.RegionState.AddHatchedNeedleFly += RegionState_AddHatchedNeedleFly;
-            IL.FliesRoomAI.Update += FliesRoomAI_Update;
+            On.FliesRoomAI.Update += FliesRoomAI_Update;
             if (ModManager.MSC)
             {
                 IL.BigSpider.BabyPuff += BigSpider_BabyPuff;
@@ -102,62 +105,63 @@ public class Plugin : BaseUnityPlugin
     // Spawning the scavs
     private void AbstractCreature_ctor(On.AbstractCreature.orig_ctor orig, AbstractCreature self, World world, CreatureTemplate creatureTemplate, Creature realizedCreature, WorldCoordinate pos, EntityID ID)
     {
-        if (
-            // If realizedCreature is not null (doesn't seem to be anywhere though), we can't change that
-            realizedCreature is null &&
-            // Special cases where we leave it be
-            creatureTemplate.type != CreatureTemplate.Type.Slugcat &&
-            creatureTemplate.type != CreatureTemplate.Type.Overseer &&
-            creatureTemplate.type != CreatureTemplate.Type.VultureGrub &&
-            creatureTemplate.type != CreatureTemplate.Type.Scavenger &&
-            creatureTemplate.type != CreatureTemplate.Type.Deer &&
-            !(creatureTemplate.type == CreatureTemplate.Type.Fly && options.BatfliesSpawn.Value) &&
-            (
-                // MSC stuff
-                !ModManager.MSC || (
-                    creatureTemplate.type != MoreSlugcatsEnums.CreatureTemplateType.SlugNPC &&
-                    creatureTemplate.type != MoreSlugcatsEnums.CreatureTemplateType.MotherSpider &&
-                    creatureTemplate.type != MoreSlugcatsEnums.CreatureTemplateType.ScavengerElite &&
-                    creatureTemplate.type != MoreSlugcatsEnums.CreatureTemplateType.ScavengerKing
-                )
-            )
-        )
+        HashSet<CreatureTemplate.Type> exceptions = [
+            CreatureTemplate.Type.Slugcat,
+            CreatureTemplate.Type.Overseer,
+            CreatureTemplate.Type.VultureGrub,
+            CreatureTemplate.Type.Scavenger,
+            CreatureTemplate.Type.Deer
+        ];
+        if (options.BatfliesSpawn.Value) exceptions.Add(CreatureTemplate.Type.Fly);
+
+        // DLC Shared
+        if (ModManager.DLCShared)
+        {
+            exceptions.UnionWith([
+                DLCSharedEnums.CreatureTemplateType.MotherSpider,
+                DLCSharedEnums.CreatureTemplateType.ScavengerElite
+            ]);
+        }
+
+        // Watcher
+        if (ModManager.MSC)
+        {
+            exceptions.UnionWith([
+                MoreSlugcatsEnums.CreatureTemplateType.SlugNPC,
+                MoreSlugcatsEnums.CreatureTemplateType.ScavengerKing
+            ]);
+
+            // Inv still gets to suffer >:3
+            if (world.game.GetStorySession?.saveStateNumber == MoreSlugcatsEnums.SlugcatStatsName.Sofanthiel && Random.value < 0.5f)
+            {
+                exceptions.UnionWith([
+                    CreatureTemplate.Type.RedLizard,
+                    CreatureTemplate.Type.RedCentipede,
+                    CreatureTemplate.Type.SpitterSpider,
+                    CreatureTemplate.Type.DaddyLongLegs,
+                    MoreSlugcatsEnums.CreatureTemplateType.TrainLizard,
+                    DLCSharedEnums.CreatureTemplateType.TerrorLongLegs,
+                    DLCSharedEnums.CreatureTemplateType.MirosVulture
+                ]);
+            }
+        }
+        if (realizedCreature is null && !exceptions.Contains(creatureTemplate.type))
         {
             CreatureTemplate.Type type = CreatureTemplate.Type.Scavenger;
             //CreatureTemplate.Type type = CreatureTemplate.Type.RedLizard;
 
-            if (ModManager.MSC)
+            if (ModManager.DLCShared)
             {
-
-                if (Random.value < 1.0 / 20.0)
+                if (Random.value < 1f / 20f)
                 {
-                    type = MoreSlugcatsEnums.CreatureTemplateType.ScavengerElite;
+                    type = DLCSharedEnums.CreatureTemplateType.ScavengerElite;
                 }
-
-                // Inv still gets to suffer >:3
-                SlugcatStats.Name campaign = world.game.GetStorySession?.saveStateNumber;
-                if (campaign == MoreSlugcatsEnums.SlugcatStatsName.Sofanthiel)
+            }
+            if (ModManager.Watcher)
+            {
+                if (Random.value < 1f / 20f)
                 {
-                    if (
-                        creatureTemplate.type == MoreSlugcatsEnums.CreatureTemplateType.Yeek ||
-                        ((
-                            creatureTemplate.type == CreatureTemplate.Type.RedLizard ||
-                            creatureTemplate.type == CreatureTemplate.Type.RedCentipede ||
-                            creatureTemplate.type == CreatureTemplate.Type.SpitterSpider ||
-                            creatureTemplate.type == CreatureTemplate.Type.DaddyLongLegs ||
-                            creatureTemplate.type == MoreSlugcatsEnums.CreatureTemplateType.TrainLizard ||
-                            creatureTemplate.type == MoreSlugcatsEnums.CreatureTemplateType.MirosVulture ||
-                            creatureTemplate.type == MoreSlugcatsEnums.CreatureTemplateType.TerrorLongLegs
-                        ) &&
-                        Random.value < 0.5f)
-                    )
-                    {
-                        type = creatureTemplate.type;
-                    }
-                    else
-                    {
-                        type = MoreSlugcatsEnums.CreatureTemplateType.ScavengerElite;
-                    }
+                    type = Random.value < 1f / 3f ? WatcherEnums.CreatureTemplateType.ScavengerDisciple : WatcherEnums.CreatureTemplateType.ScavengerTemplar;
                 }
             }
 
@@ -167,7 +171,7 @@ public class Plugin : BaseUnityPlugin
                 {
                     ID = new EntityID(ID.spawner, options.ScavSpawnId.Value);
                 }
-                else if (type == MoreSlugcatsEnums.CreatureTemplateType.ScavengerElite)
+                else if (type == DLCSharedEnums.CreatureTemplateType.ScavengerElite)
                 {
                     ID = new EntityID(ID.spawner, options.EliteSpawnId.Value);
                 }
@@ -185,18 +189,8 @@ public class Plugin : BaseUnityPlugin
         {
             var c = new ILCursor(il);
 
-            c.GotoNext(
-                MoveType.After,
-                i => i.MatchLdarg(1),
-                i => i.MatchLdfld<World>("singleRoomWorld"),
-                i => i.Match(OpCodes.Brtrue_S)
-            );
-            ILLabel target = (ILLabel)c.Prev.Operand;
-
-            c.GotoPrev(MoveType.Before, i => i.MatchLdarg(1));
-
-            c.EmitDelegate(() => options.SpawnWithItems.Value); // only give everyone items if we want them to have them
-            c.Emit(OpCodes.Brtrue, target);
+            c.GotoNext(MoveType.After, x => x.MatchLdfld<World>(nameof(World.singleRoomWorld)));
+            c.EmitDelegate((bool singleRoomWorld) => singleRoomWorld || options.SpawnWithItems.Value); // only give everyone items if we want them to have them
         }
         catch (Exception ex)
         {
@@ -247,7 +241,7 @@ public class Plugin : BaseUnityPlugin
             c.GotoNext(
                 MoveType.Before,
                 i => i.MatchLdloc(out _),
-                i => i.MatchCallvirt<AbstractCreature>("get_realizedCreature"),
+                i => i.MatchCallvirt(typeof(AbstractCreature).GetProperty(nameof(AbstractCreature.realizedCreature)).GetGetMethod()),
                 i => i.MatchIsinst<DaddyLongLegs>()
             );
 
@@ -278,55 +272,30 @@ public class Plugin : BaseUnityPlugin
             var c = new ILCursor(il);
 
             // Skip hazer stuff
-            c.GotoNext(i => i.MatchLdsfld<CreatureTemplate.Type>("Hazer")); // hazer uses vulture grub state but it does so after vulture grubs themselves
-            c.GotoNext(
-                MoveType.Before,
-                i => i.MatchLdloc(out _),
-                i => i.MatchLdfld<AbstractCreature>("state"),
-                i => i.MatchIsinst<VultureGrub.VultureGrubState>()
-            );
+            c.GotoNext(i => i.MatchLdsfld<CreatureTemplate.Type>(nameof(CreatureTemplate.Type.Hazer))); // hazer uses vulture grub state but it does so after vulture grubs themselves
+            CreateHook<VultureGrub.VultureGrubState>();
+            CreateHook<BigJellyState>();
+            CreateHook<StowawayBugState>();
 
-            var location = new ILCursor(c);
-
-            c.GotoNext(i => i.Match(OpCodes.Br));
-            ILLabel target = (ILLabel)c.Next.Operand;
-
-            location.Emit(OpCodes.Br, target);
-
-
-            // MSC stuff
-            if (ModManager.MSC)
+            void CreateHook<T>()
             {
-                // Big jellyfish time
-                c.GotoNext(
-                    MoveType.Before,
-                    i => i.MatchLdloc(out _),
-                    i => i.MatchLdfld<AbstractCreature>("state"),
-                    i => i.MatchIsinst<BigJellyState>()
-                );
+                // Find location
+                c.GotoNext(i => i.MatchIsinst<T>());
+                c.GotoPrev(MoveType.AfterLabel, i => i.MatchStloc(out _));
 
-                location = new ILCursor(c);
+                // Spawn in creature
+                c.Emit(OpCodes.Dup);
+                c.Emit(OpCodes.Ldarg_0);
+                // c.EmitDelegate((AbstractCreature crit, AbstractRoom self) => self.AddEntity(crit));
+                c.EmitDelegate((AbstractCreature crit, Room self) => self.abstractRoom.AddEntity(crit));
+                c.GotoNext(MoveType.After, x => x.MatchStloc(out _));
 
-                c.GotoNext(i => i.Match(OpCodes.Br));
-                target = (ILLabel)c.Next.Operand;
-
-                location.Emit(OpCodes.Br, target);
-
-
-                // Stowaways
-                c.GotoNext(
-                    MoveType.Before,
-                    i => i.MatchLdloc(out _),
-                    i => i.MatchLdfld<AbstractCreature>("state"),
-                    i => i.MatchIsinst<StowawayBugState>()
-                );
-
-                location = new ILCursor(c);
-
-                c.GotoNext(i => i.Match(OpCodes.Br));
-                target = (ILLabel)c.Next.Operand;
-
-                location.Emit(OpCodes.Br, target);
+                // Create break point to skip extra stuff
+                var label = c.MarkLabel();
+                ILLabel brTo = null;
+                c.GotoNext(x => x.MatchBr(out brTo));
+                c.GotoLabel(label);
+                c.Emit(OpCodes.Br, brTo);
             }
         }
         catch (Exception ex)
@@ -343,20 +312,9 @@ public class Plugin : BaseUnityPlugin
         {
             var c = new ILCursor(il);
 
-            c.GotoNext(
-                MoveType.Before,
-                i => i.MatchLdarg(1),
-                i => i.MatchLdsfld<CreatureTemplate.Type>("Spider")
-            );
-
-            // Create temporary cursor before skip block
-            var location = new ILCursor(c);
-
-            // Get next br statement (should be end of code block) and add it to location
-            c.GotoNext(i => i.Match(OpCodes.Brfalse_S));
-            ILLabel target = (ILLabel)c.Next.Operand;
-
-            location.Emit(OpCodes.Br, target);
+            c.GotoNext(x => x.MatchLdsfld<CreatureTemplate.Type>(nameof(CreatureTemplate.Type.Spider)));
+            c.GotoNext(MoveType.AfterLabel, x => x.MatchBrfalse(out _));
+            c.EmitDelegate((bool _) => false);
         }
         catch (Exception ex)
         {
@@ -373,12 +331,13 @@ public class Plugin : BaseUnityPlugin
         {
             var c = new ILCursor(il);
 
-            c.GotoNext(
-                MoveType.Before,
-                i => i.MatchLdloc(out _),
-                i => i.MatchCallvirt<AbstractCreature>("get_realizedCreature"),
-                i => i.MatchIsinst<Spider>()
-            );
+            c.GotoNext(i => i.MatchIsinst<Spider>());
+            c.GotoPrev(MoveType.After, x => x.MatchCallvirt<AbstractPhysicalObject>(nameof(AbstractPhysicalObject.RealizeInRoom)));
+            var label = c.MarkLabel();
+            c.GotoNext(MoveType.After, x => x.MatchStfld<Spider>(nameof(Spider.bloodLust)));
+            var brTo = c.MarkLabel();
+            c.GotoLabel(label);
+            c.Emit(OpCodes.Br, brTo);
 
             c.RemoveRange(5);
         }
@@ -396,16 +355,10 @@ public class Plugin : BaseUnityPlugin
         {
             var c = new ILCursor(il);
 
-            c.GotoNext(
-                MoveType.Before,
-                i => i.MatchDup(),
-                i => i.MatchLdfld<AbstractCreature>("state"),
-                i => i.MatchIsinst<NeedleWormAbstractAI.NeedleWormState>(),
-                i => i.MatchLdcI4(1),
-                i => i.MatchStfld<NeedleWormAbstractAI.NeedleWormState>("eggSpawn")
-            );
-
-            c.RemoveRange(5);
+            c.GotoNext(MoveType.After, x => x.MatchStfld<NeedleWormAbstractAI.NeedleWormState>(nameof(NeedleWormAbstractAI.NeedleWormState.eggSpawn)));
+            var brTo = c.MarkLabel();
+            c.GotoPrev(MoveType.AfterLabel, x => x.MatchDup());
+            c.Emit(OpCodes.Br, brTo);
         }
         catch (Exception ex)
         {
@@ -414,24 +367,11 @@ public class Plugin : BaseUnityPlugin
         }
     }
 
-    private void FliesRoomAI_Update(ILContext il)
+    private void FliesRoomAI_Update(On.FliesRoomAI.orig_Update orig, FliesRoomAI self, bool eu)
     {
-        // Stop the game from trying to deal with flies that don't exist
-        try
+        if (options.BatfliesSpawn.Value)
         {
-            var start = new ILCursor(il);
-            var end = new ILCursor(il);
-
-            end.GotoNext(MoveType.Before, i => i.MatchRet());
-            end.Index -= 3;
-
-            start.EmitDelegate(() => options.BatfliesSpawn.Value); // don't skip AI code if batflies can spawn
-            start.Emit(OpCodes.Brfalse, end.Next);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError("IL swarm room AI update fix error!");
-            Logger.LogError(ex);
+            orig(self, eu);
         }
     }
 
@@ -442,18 +382,9 @@ public class Plugin : BaseUnityPlugin
         {
             var c = new ILCursor(il);
 
-            for (int i = 0; i < 3; i++)
-            {
-                c.GotoNext(
-                    MoveType.Before,
-                    i => i.MatchLdarg(0),
-                    i => i.MatchLdfld<HRGuardManager>("myGuard"),
-                    i => i.MatchCallvirt<AbstractCreature>("get_realizedCreature"),
-                    i => i.MatchIsinst<TempleGuard>(),
-                    i => i.MatchLdfld<TempleGuard>("AI")
-                );
-                c.RemoveRange(8);
-            }
+            c.GotoNext(x => x.MatchIsinst<TempleGuard>());
+            c.GotoPrev(MoveType.After, x => x.MatchCallOrCallvirt(typeof(CreatureState).GetProperty(nameof(CreatureState.alive)).GetGetMethod()));
+            c.EmitDelegate((bool orig) => false);
         }
         catch (Exception ex)
         {
@@ -471,22 +402,11 @@ public class Plugin : BaseUnityPlugin
         {
             var c = new ILCursor(il);
 
-            c.GotoNext(
-                MoveType.Before,
-                i => i.MatchLdarg(0),
-                i => i.MatchLdfld<UpdatableAndDeletable>("room"),
-                i => i.MatchCallvirt<Room>("get_abstractRoom"),
-                i => i.MatchLdsfld<CreatureTemplate.Type>("Vulture")
-            );
-
-            // Create temporary cursor before skip block
-            var location = new ILCursor(c);
-
-            // Get next br statement (should be end of code block) and add it to location
-            c.GotoNext(i => i.Match(OpCodes.Brfalse_S));
-            ILLabel target = (ILLabel)c.Next.Operand;
-
-            location.Emit(OpCodes.Br, target);
+            c.GotoNext(x => x.MatchLdsfld<CreatureTemplate.Type>(nameof(CreatureTemplate.Type.Vulture)));
+            c.GotoNext(MoveType.After, x => x.MatchRet());
+            var brTo = c.MarkLabel();
+            c.GotoPrev(MoveType.AfterLabel, x => x.MatchLdcI4(0));
+            c.Emit(OpCodes.Br, brTo);
         }
         catch (Exception ex)
         {
@@ -502,51 +422,28 @@ public class Plugin : BaseUnityPlugin
         {
             var c = new ILCursor(il);
 
-            // Make it so the vulture doesn't give a crap about room attractedness for vultures first
-            c.GotoNext(
-                MoveType.Before,
-                i => i.MatchLdloc(1),
-                i => i.MatchLdsfld<CreatureTemplate.Type>("Vulture"),
-                i => i.MatchCallvirt<AbstractRoom>("AttractionForCreature")
-            );
+            // Skip room attraction check
+            c.GotoNext(MoveType.After, x => x.MatchLdsfld<AbstractRoom.CreatureRoomAttraction>(nameof(AbstractRoom.CreatureRoomAttraction.Forbidden)));
+            c.GotoNext(MoveType.AfterLabel, x => x.MatchBrfalse(out _));
+            c.EmitDelegate((bool orig) => false);
 
-            var location = new ILCursor(c);
+            // Replace array
+            int arrIndex = 2;
+            c.GotoNext(x => x.MatchNewarr<CreatureTemplate.Type>());
+            c.GotoNext(x => x.MatchStloc(out arrIndex));
 
-            c.GotoNext(i => i.Match(OpCodes.Brfalse_S));
-            ILLabel target = (ILLabel)c.Next.Operand;
-
-            location.Emit(OpCodes.Br, target);
-
-            // Find where the arrays for what can actually spawn are set and hijack them for our devious purposes
-            c.GotoNext(
-                MoveType.After,
-                i => i.MatchLdarg(0),
-                i => i.MatchLdfld<UpdatableAndDeletable>("room"),
-                i => i.MatchLdfld<Room>("world"),
-                i => i.MatchLdfld<World>("offScreenDen")
-            );
-
-            // Replace the array values for MSC
-            c.GotoNext(i => i.MatchNewarr<CreatureTemplate.Type>());
-            c.GotoNext(MoveType.Before, i => i.MatchLdsfld<CreatureTemplate.Type>("Vulture"));
-            c.Remove();
-            c.EmitDelegate(() => CreatureTemplate.Type.Scavenger);
-            c.GotoNext(MoveType.Before, i => i.MatchLdsfld<CreatureTemplate.Type>("KingVulture"));
-            c.Remove();
-            c.EmitDelegate(() => MoreSlugcatsEnums.CreatureTemplateType.ScavengerElite);
-
-            // Remove MirosVulture
-            c.GotoNext(MoveType.Before, i => i.MatchDup());
-            c.RemoveRange(4);
-
-            // Repeat for non-MSC array but don't put in ScavengerElite
-            c.GotoNext(i => i.MatchNewarr<CreatureTemplate.Type>());
-            c.GotoNext(MoveType.Before, i => i.MatchLdsfld<CreatureTemplate.Type>("Vulture"));
-            c.Remove();
-            c.EmitDelegate(() => CreatureTemplate.Type.Scavenger);
-
-            c.GotoNext(MoveType.Before, i => i.MatchDup());
-            c.RemoveRange(4);
+            c.GotoNext(MoveType.Before, x => x.MatchBr(out _));
+            c.EmitDelegate(() => {
+                HashSet<CreatureTemplate.Type> creatures = [CreatureTemplate.Type.Scavenger];
+                if (ModManager.DLCShared) creatures.Add(DLCSharedEnums.CreatureTemplateType.ScavengerElite);
+                if (ModManager.Watcher)
+                {
+                    creatures.Add(WatcherEnums.CreatureTemplateType.ScavengerTemplar);
+                    creatures.Add(WatcherEnums.CreatureTemplateType.ScavengerDisciple);
+                }
+                return creatures.ToArray();
+            });
+            c.Emit(OpCodes.Stloc, arrIndex);
         }
         catch (Exception ex)
         {
